@@ -33,7 +33,6 @@ from torch import Tensor
 import scipy.io as sio
 from matplotlib import cm
 from matplotlib.ticker import MaxNLocator
-from pyDOE2 import lhs
 import openpyxl
 
 
