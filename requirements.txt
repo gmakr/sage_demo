@@ -13,5 +13,5 @@ scipy==1.7.1
 gpytorch==1.5.1
 openpyxl==3.0.9
 matplotlib==3.4.3
-
+scipydirect
 
