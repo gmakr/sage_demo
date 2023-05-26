@@ -140,7 +140,7 @@ with tab_opt:
             # Check if the "Index" column already exists
             if "Index" not in st.session_state.df_train.columns:
                 # Generate the index
-                index_values = list(range(-st.session_state.Ninit, 0)) + list(range(1, len(st.session_state.df_train) - st.session_state.Ninit + 1))
+                index_values = list(range(-st.session_state.Ninit+1, 1)) + list(range(1, len(st.session_state.df_train) - st.session_state.Ninit + 1))
                 # Insert the index as the first column
                 st.session_state.df_train.insert(0, "Index", index_values)
 
@@ -189,22 +189,17 @@ with tab_opt:
         with opt_col2:
             # Get the dataframe from the session state
             df_train = st.session_state.df_train
-
             # Separate the target variable (y) from the features (x)
             df_train_y = df_train.iloc[:, -1]  # assuming y is the last column
-
             # Create a list for the x-axis
-            x_axis = list(range(-st.session_state.Ninit, 0)) + list(range(1, df_train.shape[0]-st.session_state.Ninit+1))
-
+            x_axis = list(range(-st.session_state.Ninit+1, 1)) + list(range(1, df_train.shape[0]-st.session_state.Ninit+1))
             # Create a new figure
             fig = go.Figure()
-
             # Initialize BO in the session state if it doesn't exist
             if 'BO' not in st.session_state:
                 st.session_state.BO = BayesianOptimization(train_X=train_x[:st.session_state.Ninit], train_Y=train_y[:st.session_state.Ninit], bounds=bounds_tensor, noiseless_obs=False)
 
             mean_init, std_dev_init = st.session_state.BO.get_posterior_stats(train_x[:st.session_state.Ninit])
-
             # Add trace for predicted mean with error bars for initial points
             fig.add_trace(go.Scatter(
                 x=x_axis[:st.session_state.Ninit],
@@ -222,41 +217,43 @@ with tab_opt:
             ))
 
             for i in range(st.session_state.Ninit, len(df_train_y)):
-                # Update the BO object in the session state
-                st.session_state.BO = BayesianOptimization(train_X=train_x[:i], train_Y=train_y[:i], bounds=bounds_tensor, noiseless_obs=False)
-                mean, std_dev = st.session_state.BO.get_posterior_stats(train_x[:i+1])
-
-                # Add trace for predicted mean with error bars
-                fig.add_trace(go.Scatter(
-                    x=x_axis[i:i+1],
-                    y=mean.detach().numpy().flatten()[-1:],
-                    error_y=dict(
-                        type='data',
-                        array=1.96*std_dev.detach().numpy().flatten()[-1:],
-                        visible=True
-                    ),
-                    mode='markers',
-                    marker=dict(color='mediumslateblue', size=20),
-                    name='Predicted Performance' if i == st.session_state.Ninit else "",
-                    legendgroup="group2",
-                    hovertemplate="Predicted Performance at Iteration %d" % (i-st.session_state.Ninit+1),
-                    showlegend=False if i > st.session_state.Ninit else True
-                ))
-
                 # Check if the actual observation is available
                 if not np.isnan(df_train_y[i]):
+                    # Update the BO object in the session state
+                    if 'BO' not in st.session_state:
+                        st.session_state.BO = BayesianOptimization(train_X=train_x[:i], train_Y=train_y[:i], bounds=bounds_tensor, noiseless_obs=False)
+                    else:
+                        st.session_state.BO = BayesianOptimization(train_X=train_x[:i], train_Y=train_y[:i], bounds=bounds_tensor, noiseless_obs=False)
+                    mean, std_dev = st.session_state.BO.get_posterior_stats(train_x[:i+1])
+
+                    # Add trace for predicted mean with error bars
+                    fig.add_trace(go.Scatter(
+                        x=x_axis[i:i+1],
+                        y=mean.detach().numpy().flatten()[-1:],
+                        error_y=dict(
+                            type='data',
+                            array=1.96*std_dev.detach().numpy().flatten()[-1:],
+                            visible=True
+                        ),
+                        mode='markers',
+                        marker=dict(color='mediumslateblue', size=20),
+                        name='Predicted Performance',
+                        legendgroup="group2",
+                        hovertemplate="Predicted Performance at Iteration %d" % (i-st.session_state.Ninit+1),
+                        showlegend= i == st.session_state.Ninit
+                    ))
+
                     # Add trace for actual observation
                     fig.add_trace(go.Scatter(
                         x=x_axis[i:i+1],
                         y=df_train_y[i:i+1],
                         mode='markers',
                         marker=dict(color='mediumvioletred', symbol='star', size=20),
-                        name='Observed Performance' if i == st.session_state.Ninit else "",
+                        name='Observed Performance',
                         legendgroup="group3",
                         hovertemplate="Actual Performance at Iteration %d" % (i-st.session_state.Ninit+1),
-                        showlegend=False if i > st.session_state.Ninit else True
+                        showlegend= i == st.session_state.Ninit
                     ))
-
             # Positioning the legend and adding axis names
             fig.update_layout(
                 xaxis=dict(
