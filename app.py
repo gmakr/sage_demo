@@ -6,10 +6,13 @@ from PIL import Image
 import torch
 import numpy as np
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
 import time
 # Import the ExcelHandler class from your Jupyter Notebook
 from single_utils import ExcelHandler, BayesianOptimization, GPModel
 import datetime
+import scipy
 from scipy.stats import norm
 
 # Set page title and favicon
@@ -32,7 +35,7 @@ col1.image(logo_image,width=150)
 #st.title("Bayesian Optimization for Smart Experimentation (BOSE)")
 #st.subheader('BOSE is an application for performing active experimental design based on Bayesian Optimization.')
 
-tab_about, tab_data, tab_opt, tab_preds = st.tabs(["ℹ️ About", "🗃Data  ", "  📈 Optimization ", " 🎯 Predictions"])
+tab_about, tab_data, tab_opt, tab_preds = st.tabs(["ℹ️ About", "🗃Data  ", "  📈 Optimization ", " 🔍 Visualizations"])
 
 with tab_about:
     st.markdown(
@@ -51,7 +54,8 @@ with tab_about:
         sure you follow the "template.xslm" file provided and include both the experimental parameters (features) and the observed results (targets).
         - **📈 Optimization**: In this tab, you'll see the optimization process in action. The system will suggest the next set of experiment parameters to try based on the current available data. It uses a Bayesian Optimization approach to intelligently suggest the next experiments.
         The tool provides the flexibility to insert any query that you perform.
-        - **🎯 Predictions**: Here, you can input a set of parameters and the app will give you an estimate of the expected result, along with a probability distribution around that estimate. It allows you to explore the potential outcomes of an experiment without having to actually perform it.
+        - **🔍 Visualizations**: Here, you can input a set of parameters and the app will give you an estimate of the expected result, along with a probability distribution around that estimate. It allows you to explore the potential outcomes of an experiment
+        without having to actually perform it. It also provides further information about the algorithm in terms of sampling utility per point.
 
         ## 🚀 Development
         We aim to continuously improve our application by incorporating user feedback, adding new features,
@@ -99,6 +103,7 @@ with tab_data:
 
 
 
+
 with tab_opt:
     if uploaded_file is not None:
         if "train_x" not in st.session_state or "train_y" not in st.session_state:
@@ -112,12 +117,12 @@ with tab_opt:
             df_train = pd.concat([df_train_x, df_train_y], axis=1)
             # Save the dataframe to the session state
             st.session_state.df_train = df_train
-
             # Initialize the BO object
             st.session_state.BO = BayesianOptimization(train_X=train_x, train_Y=train_y, bounds=bounds_tensor, noiseless_obs=False)
         else:
             train_x = st.session_state.train_x
             train_y = st.session_state.train_y
+
 
         opt_col1, opt_col2 = st.columns([0.9,1.1])
 
@@ -130,12 +135,11 @@ with tab_opt:
             """, unsafe_allow_html=True)
 
         with opt_col1:
+
             # Display the dataframe
-            st.markdown("#### Experimental Data")
+            st.markdown("##### Experimental Data")
             st.write("Add completed queries here")
             st.markdown('###')
-
-
 
             # Check if the "Index" column already exists
             if "Index" not in st.session_state.df_train.columns:
@@ -146,12 +150,8 @@ with tab_opt:
 
             # Run the data editor
             st.session_state.df_train = st.experimental_data_editor(st.session_state.df_train, width=500, height=250, num_rows="dynamic")
-
-            # Update the "Index" column with new values
-            #index_values = list(range(-st.session_state.Ninit, 0)) + list(range(1, len(st.session_state.df_train) - st.session_state.Ninit + 1))
-            #st.session_state.df_train["Index"] = index_values
-
             # Save any changes back to the session state
+
             st.session_state.df_train = st.session_state.df_train
 
             # Find rows without missing values
@@ -165,13 +165,33 @@ with tab_opt:
             train_x = torch.tensor(train_x.values, dtype=torch.float32)
             train_y = torch.tensor(train_y.values, dtype=torch.float32)
 
+            #st.markdown("""
+            #<style>
+            #div[data-baseweb="slider"] div:first-child div:first-child {
+        #        height: 20px !important;
+        #    }
+            #div[data-baseweb="slider"] div:first-child div:first-child::before {
+        #        height: 20px !important;
+    #        }
+    #        </style>
+    #        """, unsafe_allow_html=True)
+            st.markdown('##### Exploration Level')
+            st.write("Determine the degree of exploration applied by the optimizer")
+            expl_select = st.select_slider('Beta',
+            options=['0','0.1', '0.2','0.3','0.4','0.5','0.6', '0.7', '0.8', '0.9', '1'],
+            value='0.5',
+            format_func=lambda x: 'Chill' if x == '0' else 'Aggressive' if x == '1' else x
+            )
+            exploration = float(expl_select)  # convert the selected value back to float for further processing
+
+            beta = 2.0 #Baseline value for beta
             if st.button("Get Experiment"):
-                st.markdown("#### Suggested Query")
+                st.markdown("##### Suggested Query")
                 st.write("Queue of proposed experiment(s)")
                 # Update the BO object
-                st.session_state.BO = BayesianOptimization(train_X=train_x, train_Y=train_y, bounds=bounds_tensor, noiseless_obs=False)
-                suggested_point, acq_value = st.session_state.BO.optimize_acquisition()
 
+                st.session_state.BO = BayesianOptimization(train_X=train_x, train_Y=train_y, bounds=bounds_tensor, noiseless_obs=False)
+                suggested_point, acq_value = st.session_state.BO.optimize_acquisition(beta=exploration*beta)
                 # Convert suggested point to numpy array
                 suggested_point_np = suggested_point.detach().numpy().flatten()
 
@@ -184,9 +204,14 @@ with tab_opt:
             # Display the stored suggested_df if it exists
             if hasattr(st.session_state, 'suggested_df'):
                 table = tabulate(st.session_state.suggested_df, tablefmt="pipe", headers="keys", showindex=False)
-                st.markdown(table, unsafe_allow_html=True)
+                st.write(table, unsafe_allow_html=True)
+
 
         with opt_col2:
+            #st.write(train_x)
+            #st.write(train_y)
+            st.markdown("##### Performance Progress")
+            st.write("A visualization of the algorithm progression")
             # Get the dataframe from the session state
             df_train = st.session_state.df_train
             # Separate the target variable (y) from the features (x)
@@ -256,21 +281,23 @@ with tab_opt:
                     ))
             # Positioning the legend and adding axis names
             fig.update_layout(
-                xaxis=dict(
+                     width=800,  # Adjust width
+                    height=600,  # Adjust height
+                    xaxis=dict(
                     title="Iterations",
                     titlefont=dict(
-                        size=14 ),
+                        size=16),
                     tickfont=dict(
-                        size=14),
+                        size=16),
                     showgrid = True
                 ),
                 yaxis=dict(
                     title="Performance",
                     titlefont=dict(
-                        size=14
+                        size=16
                     ),
                     tickfont=dict(
-                        size=14
+                        size=16
                     ),
                     showgrid=True
                 ),
@@ -282,6 +309,7 @@ with tab_opt:
                     x=0,
                     font=dict(size=15),
                 ),
+
                 shapes=[
                     dict(
                         type="line",
@@ -303,81 +331,161 @@ with tab_opt:
 
 
 
+# Define color list
+color_list = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b"]
+
 with tab_preds:
     if uploaded_file is not None:
-        st.header("Predict at Desired Input")
+        if "df_test" not in st.session_state:
+            max_index = train_y.argmax().item()
+            max_input = train_x[max_index]
+            initial_test_df = pd.DataFrame(max_input.numpy()[np.newaxis, :], columns=col_names_x)
+            st.session_state.df_test = initial_test_df.reset_index().rename(columns={'index': 'Index'})
 
-        col1, col2 = st.columns([0.8,1.2])
+        preds_col1, preds_col2 = st.columns([0.7,1.0])
 
-        with col1:
-            st.markdown("Estimate performance statistics based on <br> available observations", unsafe_allow_html=True)
+        with preds_col1:
+            st.markdown("##### Inspection at Desired Inputs")
+            st.write("Add test points at which you want to <br> estimate the performance", unsafe_allow_html=True)
+            st.write("#")
+            st.write("#")
+            df_test = st.experimental_data_editor(st.session_state.df_test, width=500, height=200, num_rows="dynamic")
+
+            if st.button("Predict"):
+                st.session_state.df_test = df_test.copy()
+                st.session_state.df_test.reset_index(drop=True, inplace=True)
+
+                # Find rows without missing values
+                complete_rows_mask_test = st.session_state.df_test.notna().all(axis=1)
+
+                # Check if all rows are complete
+                if complete_rows_mask_test.all():
+                    # Separate the features
+                    test_x = st.session_state.df_test[complete_rows_mask_test].iloc[:, 1:]  # Exclude 'Point Index'
+                    # Convert pandas DataFrames to PyTorch tensors
+                    test_x = torch.tensor(test_x.values, dtype=torch.float32)
+                    # Initialize the figure outside of the loop
+                    fig = go.Figure()
+                    layout = go.Layout(
+                        xaxis=dict(title="Predicted Performance", title_font=dict(size=18), tickfont=dict(size=18)),
+                        yaxis=dict(title="Probability Density", title_font=dict(size=18), tickfont=dict(size=18)),
+                        autosize=False,
+                        width=700,
+                        height=400,
+                        margin=go.layout.Margin(
+                            l=50,
+                            r=50,
+                            b=100,
+                            t=100,
+                            pad=4))
+
+                    # Make predictions for complete rows
+                    for i, idx in enumerate(test_x):
+                        input_tensor = torch.tensor(idx).reshape(1, -1)
+                        mean, std_dev = st.session_state.BO.get_posterior_stats(input_tensor)
+
+                        mean = mean.item()
+                        std_dev = std_dev.item()
+                        x_values = np.linspace(mean - 3*std_dev, mean + 3*std_dev, 1000)
+                        fig.add_trace(go.Scatter(x=x_values, y=norm.pdf(x_values, mean, std_dev),
+                                                    mode='lines',
+                                                    name=f"Point {int(st.session_state.df_test.iloc[i, 0])}",
+                                                    fill='tozeroy',
+                                                    line=dict(color=color_list[i % len(color_list)])))  # Set the color of the trace
+
+                    fig.update_layout(layout)
+                    st.session_state.plot = fig
+                else:
+                    st.error("Please fill in all fields before predicting.")
+
+        with preds_col2:
+            st.markdown("##### Visualization of Performance")
+            st.write("Estimated performance statistics based on <br> available observations", unsafe_allow_html=True)
+            if 'plot' in st.session_state:
+                st.write(st.session_state.plot)
+
+        acquisition_col1 , acquisition_col2= st.columns([0.7,1.0])
+
+        with acquisition_col1:
             st.markdown("#")
-            # Define a dictionary to hold user input
-            input_dict = {}
+            st.markdown("##### Acquisition Inspection")
+            st.write("Select a test point and a feature to inspect acquisition function value", unsafe_allow_html=True)
 
-            # Loop over each feature and get user input
-            for feature in col_names_x:
-                suggested_value = float(st.session_state.suggested_df[feature][0]) if hasattr(st.session_state, 'suggested_df') else 0.0
-                input_dict[feature] = st.number_input(f"{feature}", value=suggested_value)
+            if 'df_test' in st.session_state:
+                # Create a selection box for the "Point Index"
+                point_indices = [str(int(i)) for i in st.session_state.df_test['Index'].unique()]
+                point_index = st.selectbox('Select Point Index', point_indices)
+                point_index = int(point_index)
+                # After the point index is selected by the user:
+                display_row = st.session_state.df_test[st.session_state.df_test['Index'] == point_index].iloc[:, 1:]
+                # Transpose the row to get a column DataFrame
+                transposed_row = display_row.transpose()
+                # Get column names (feature names) and values separately
+                features = transposed_row.index.tolist()  # Feature names
+                values = [v[0] for v in transposed_row.values.tolist()]  # Flatten the list and Corresponding values
+                # Now, create a new DataFrame with 'Feature' and 'Value' columns, round values to 2 decimal places
+                display_df = pd.DataFrame({'Feature': features, 'Value': [round(val, 2) for val in values]})
 
+                # Convert the DataFrame to an HTML table string without index and header
+                table_html = display_df.to_html(index=False, header=False)
 
-            # Convert the input dictionary to a DataFrame
-            df_input = pd.DataFrame([input_dict])
+                # Add CSS to the HTML string to change the font size
+                table_html = '<div style="font-size: 14px">' + table_html + '</div>'
 
-            st.session_state.prediction_clicked = st.button("Predict")
-            if st.session_state.prediction_clicked:
-                # Convert the input dataframe to a tensor
-                input_tensor = torch.tensor(df_input.values, dtype=torch.float32)
-                # Exclude the last data point
-                #train_x_excluding_last = train_x[:]
-                #train_y_excluding_last = train_y[:]
+                # Display the HTML table string with Streamlit's markdown function
+                st.markdown(table_html, unsafe_allow_html=True)
 
-                # Create the BO object using the modified data
-                st.session_state.BO = BayesianOptimization(train_X=train_x,
-                                                        train_Y=train_y,
-                                                        bounds=bounds_tensor,
-                                                        noiseless_obs=False)
+                st.markdown("#")
 
-                # Get the posterior stats for the input
-                mean, std_dev = st.session_state.BO.get_posterior_stats(input_tensor)
+                #Select feature
+                feature_name = st.selectbox('Select Feature', st.session_state.df_test.columns[1:].tolist())  # Exclude 'Point Index'
 
-                # Since mean and std_dev are tensors, we should convert them to scalar values
-                st.session_state.mean_scalar = mean.item()
-                st.session_state.std_dev_scalar = std_dev.item()
+                # If the "Visualize" button is clicked
+                if st.button('Visualize'):
+                    # After selection, you can access the selected row and feature as follows:
+                    selected_row = st.session_state.df_test[st.session_state.df_test['Index'] == point_index].iloc[:, 1:]  # Exclude 'Point Index'
+                    selected_feature_value = selected_row[feature_name].values[0]
 
-        with col2:
-            if st.session_state.prediction_clicked:
+                    # Get the position of the selected feature
+                    M = st.session_state.df_test.columns.get_loc(feature_name) - 1  # Subtract 1 because we excluded 'Point Index'
 
-                # Create an array of x values from the mean - 3*std_dev to mean + 3*std_dev
-                x_values = np.linspace(st.session_state.mean_scalar - 3*st.session_state.std_dev_scalar,
-                                       st.session_state.mean_scalar + 3*st.session_state.std_dev_scalar, 200)
-                # Use the probability density function (pdf) to get y-values
-                y_values = norm.pdf(x_values, st.session_state.mean_scalar, st.session_state.std_dev_scalar)
+                    # Now, you can call the `predict_slice` method with the selected test_x and M
+                    test_x = torch.tensor(selected_row.values, dtype=torch.float32)
+                    N = 100  # For example, set N=100 to get a detailed prediction
+                    xplot, means, std_devs, acqs = st.session_state.BO.predict_slice(test_x, M, acquisition_function=None, beta=2.0*0.5, N=N)
+                    # You now have the predicted values for the selected feature over a range of its values, keeping all other features constant
+                    with acquisition_col2:
+                        # Create subplot with 2 rows
+                        fig = make_subplots(rows=2, cols=1)
 
-                # Create a trace for the normal distribution
-                trace = go.Scatter(x=x_values, y=y_values, mode='lines', fill='tozeroy',
-                                   line=dict(color='lightblue', width=2), name='Prediction')
+                        # Create mean and std_dev traces for upper plot
+                        upper_trace = go.Scatter(x=xplot.numpy(), y=means.numpy(), mode='lines', name='Mean')
+                        upper_trace_fill = go.Scatter(x=np.concatenate((xplot.numpy(), xplot.numpy()[::-1])),  # x, then x reversed
+                                                      y=np.concatenate((means.numpy() - 1.96*std_devs.numpy(), (means+1.96*std_devs).numpy()[::-1])),  # upper, then lower reversed
+                                                      fill='toself',
+                                                      fillcolor='rgba(0,176,246,0.2)',
+                                                      line=dict(color='rgba(255,255,255,0)'),
+                                                      hoverinfo="skip",
+                                                      showlegend=False)
 
-                # Create a layout for the plot
-                layout = go.Layout(
-                    title="Model Predictions",
-                    xaxis=dict(title="Predicted Performance",title_font=dict(size=18),tickfont=dict(size=18)),
-                    yaxis=dict(title="Probability Density",title_font=dict(size=18),tickfont=dict(size=18)),
-                    autosize=False,
-                    width=500,
-                    height=500,
-                    margin=go.layout.Margin(
-                        l=50,
-                        r=50,
-                        b=100,
-                        t=100,
-                        pad=4))
+                        # Add traces to the upper subplot
+                        fig.add_trace(upper_trace, row=1, col=1)
+                        fig.add_trace(upper_trace_fill, row=1, col=1)
 
-                # Add the trace to the plot
-                fig = go.Figure(data=trace, layout=layout)
+                        # Create acquisition function trace for lower plot
+                        lower_trace = go.Scatter(x=xplot.numpy(), y=acqs.numpy(), mode='lines', name='Acquisition Function')
 
-                # Show the plot
-                st.plotly_chart(fig)
+                        # Add trace to the lower subplot
+                        fig.add_trace(lower_trace, row=2, col=1)
 
-    else:
-        st.write("No file has been uploaded yet.")
+                        # Update layout
+                        fig.update_layout(height=600, width=700, title_text="Mean with Confidence Intervals and Acquisition Function", showlegend=False)
+
+                        # Update xaxis and yaxis parameters for both subplots
+                        fig.update_xaxes(title_text=feature_name, row=1, col=1)  # The x-axis label is the selected feature
+                        fig.update_yaxes(title_text="Predicted Performance", row=1, col=1)
+                        fig.update_xaxes(title_text=feature_name, row=2, col=1)  # The x-axis label is the selected feature
+                        fig.update_yaxes(title_text="Acquisition Function", row=2, col=1)
+
+                        # Display the figure
+                        st.plotly_chart(fig)

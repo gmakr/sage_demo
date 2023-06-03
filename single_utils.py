@@ -124,21 +124,6 @@ class BayesianOptimization:
         return mean, std_dev
 
 
-    def get_training_posterior_stats(self):
-        """Get the mean and standard deviation of the model's posterior at the training points."""
-        means, std_devs = [], []
-        for point in self.X:
-            mean, std_dev = self.get_posterior_stats(point.view(1, -1))
-            means.append(mean[0])
-            std_devs.append(std_dev[0])
-
-        means = torch.stack(means)
-        std_devs = torch.stack(std_devs)
-        means = means.squeeze()
-        std_devs = std_devs.squeeze()
-
-        return torch.stack((means, std_devs), dim=1)
-
     def train_GP(self,verbose=False):
         # Initialize likelihood and model
         likelihood = gpytorch.likelihoods.GaussianLikelihood(noise_constraint=Interval(lower_bound=1e-5, upper_bound=1e-4),
@@ -163,10 +148,11 @@ class BayesianOptimization:
             optimizer.step()
         return model, likelihood
 
+
     def optimize_acquisition(self, acquisition_function=None, beta=None, num_restarts=5):
         dim = self.bounds.shape[-1]  # dimensionality of the problem
         best_f = self.Y.max().item()  # best observed value
-        print(best_f)
+        #print(best_f)
         if acquisition_function is None:
             if beta is not None:
                 # Use Upper Confidence Bound
@@ -187,3 +173,55 @@ class BayesianOptimization:
         )
 
         return candidate, acq_value
+
+    def predict_acquisition(self, points, acquisition_function=None, beta=None):
+        dim = self.bounds.shape[-1]  # dimensionality of the problem
+        best_f = self.Y.max().item()  # best observed value
+
+        if acquisition_function is None:
+            if beta is not None:
+                # Use Upper Confidence Bound
+                acq_func = UpperConfidenceBound(self.model, beta)
+            else:
+                # Use Expected Improvement
+                acq_func = ExpectedImprovement(self.model, best_f=best_f)
+        # Ensure input points tensor is 2D
+        if points.dim() == 1:
+            points = points.unsqueeze(0)
+        # Add an extra dimension for 'q'
+        points = points.unsqueeze(1)
+        # Evaluate acquisition function at specified points
+        acq_values = acq_func(points)
+        return acq_values
+
+
+
+    def predict_slice(self, test_x, M, acquisition_function=None, beta=None, N=100):
+        # Check if test_x is a tensor and if not, convert it
+        if not isinstance(test_x, torch.Tensor):
+            test_x = torch.tensor(test_x, dtype=torch.float32)
+        # Ensure test_x is 2D
+        if test_x.dim() == 1:
+            test_x = test_x.unsqueeze(0)
+        # Get the bounds for the M-th variable
+        lower_bound, upper_bound = self.bounds[:,M]
+        # Create a linspace of N points between the lower and upper bounds
+        x_plot = torch.linspace(lower_bound, upper_bound, N)
+        # Initialize empty tensors for storing predicted means, variances and acquisition values
+        means = torch.zeros(N)
+        std_devs = torch.zeros(N)
+        acq_values = torch.zeros(N)
+        # Iterate over linspace
+
+        for i, val in enumerate(x_plot):
+            # Set the M-th variable of test_x to the current value from the linspace
+            test_x[0, M] = val
+            # Predict the mean and variance at this point
+            mean, std_dev= self.get_posterior_stats(test_x)
+            means[i] = mean
+            std_devs[i] = std_dev
+            # Predict the acquisition function value at this point
+            acq_value = self.predict_acquisition(test_x, acquisition_function, beta)
+            acq_values[i] = acq_value.item()
+
+        return x_plot, means, std_devs, acq_values
