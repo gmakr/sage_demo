@@ -2,7 +2,6 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.linalg as LA
-import scipydirect
 import torch
 import warnings
 import gpytorch
