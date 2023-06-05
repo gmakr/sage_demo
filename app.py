@@ -124,7 +124,7 @@ with tab_opt:
             train_y = st.session_state.train_y
 
 
-        opt_col1, opt_col2 = st.columns([0.9,1.1])
+        opt_col1, opt_col2 = st.columns([0.9,1.5])
 
         st.markdown("""
             <style>
@@ -149,11 +149,9 @@ with tab_opt:
                 st.session_state.df_train.insert(0, "Index", index_values)
 
             # Run the data editor
-            st.session_state.df_train = st.experimental_data_editor(st.session_state.df_train, width=500, height=250, num_rows="dynamic")
+            st.session_state.df_train = st.experimental_data_editor(st.session_state.df_train, width=450, height=250, num_rows="dynamic")
             # Save any changes back to the session state
-
             st.session_state.df_train = st.session_state.df_train
-
             # Find rows without missing values
             complete_rows_mask = st.session_state.df_train.notna().all(axis=1)
 
@@ -247,9 +245,10 @@ with tab_opt:
                     # Update the BO object in the session state
                     if 'BO' not in st.session_state:
                         st.session_state.BO = BayesianOptimization(train_X=train_x[:i], train_Y=train_y[:i], bounds=bounds_tensor, noiseless_obs=False)
+                        mean, std_dev = st.session_state.BO.get_posterior_stats(train_x[:i+1])
                     else:
                         st.session_state.BO = BayesianOptimization(train_X=train_x[:i], train_Y=train_y[:i], bounds=bounds_tensor, noiseless_obs=False)
-                    mean, std_dev = st.session_state.BO.get_posterior_stats(train_x[:i+1])
+                        mean, std_dev = st.session_state.BO.get_posterior_stats(train_x[:i+1])
 
                     # Add trace for predicted mean with error bars
                     fig.add_trace(go.Scatter(
@@ -281,8 +280,8 @@ with tab_opt:
                     ))
             # Positioning the legend and adding axis names
             fig.update_layout(
-                     width=800,  # Adjust width
-                    height=600,  # Adjust height
+                    width=800,  # Adjust width
+                    height=500,  # Adjust height
                     xaxis=dict(
                     title="Iterations",
                     titlefont=dict(
@@ -328,7 +327,6 @@ with tab_opt:
             st.plotly_chart(fig)
     else:
          st.write("No file has been uploaded yet.")
-
 
 
 # Define color list
@@ -489,3 +487,5 @@ with tab_preds:
 
                         # Display the figure
                         st.plotly_chart(fig)
+    else:
+       st.write("No file has been uploaded yet")
