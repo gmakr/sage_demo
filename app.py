@@ -22,14 +22,14 @@ st.set_page_config(
     layout="wide",
 )
 
-
-empty1, empty2, col1 = st.columns([1.6,1.6,0.5])  # creating empty slots
+col1,empty1,col2 = st.columns([4,8,4])  # creating empty slots
 
 # Display the logo in the last column
 # Load logo
 logo_image = Image.open("utils/logo_small.png")
-col1.image(logo_image,width=150)
-
+sage_logo = Image.open("utils/sagelogo.png")
+col2.image(logo_image,width=180)
+col1.image(sage_logo,width=150)
 # Display logo and prompt user to upload Excel file
 #st.image(logo_image, width=300)
 #st.title("Bayesian Optimization for Smart Experimentation (BOSE)")
@@ -46,6 +46,8 @@ with tab_about:
         it solves optimization problems that are complex and expensive to evaluate. Designed to be
         user-friendly and intuitive, it ensures that users, regardless of their technical background,
         can easily use the application to its full potential.
+        This is the **single-objective** module, focused on optimizing a single performance metric. For more capabilities and for
+        adapting the software to your specific needs please contact us.
 
         ## 🖥 How it works?
         The app consists of three main tabs, each with its unique functionality:
@@ -176,13 +178,13 @@ with tab_opt:
             st.markdown('##### Exploration Level')
             st.write("Determine the degree of exploration applied by the optimizer")
             expl_select = st.select_slider('Beta',
-            options=['0','0.1', '0.2','0.3','0.4','0.5','0.6', '0.7', '0.8', '0.9', '1'],
+            options=['0.01','0.1', '0.2','0.3','0.4','0.5','0.6', '0.7', '0.8', '0.9', '1.0'],
             value='0.5',
-            format_func=lambda x: 'Chill' if x == '0' else 'Aggressive' if x == '1' else x
+            format_func=lambda x: 'Chill' if x == '0.01' else 'Aggressive' if x == '1.0' else x
             )
             exploration = float(expl_select)  # convert the selected value back to float for further processing
 
-            beta = 2.0 #Baseline value for beta
+            beta = 3.0 #Baseline value for beta
             if st.button("Get Experiment"):
                 st.markdown("##### Suggested Query")
                 st.write("Queue of proposed experiment(s)")

@@ -155,7 +155,7 @@ class BayesianOptimization:
         if acquisition_function is None:
             if beta is not None:
                 # Use Upper Confidence Bound
-                acq_func = UpperConfidenceBound(self.model, beta)
+                acq_func = UpperConfidenceBound(self.model, beta**2)
             else:
                 # Use Expected Improvement
                 acq_func = ExpectedImprovement(self.model, best_f=best_f)
@@ -166,7 +166,7 @@ class BayesianOptimization:
             bounds=bounds,
             q=1,  # number of candidates to generate (1 for single-point optimization)
             num_restarts=num_restarts,  # number of starting points for multistart optimization
-            raw_samples=100,  # number of samples for initialization heuristic
+            raw_samples=1000,  # number of samples for initialization heuristic
             options={"batch_limit": 5, "maxiter": 200},
             sequential=True,  # use sequential optimization
         )
@@ -180,7 +180,7 @@ class BayesianOptimization:
         if acquisition_function is None:
             if beta is not None:
                 # Use Upper Confidence Bound
-                acq_func = UpperConfidenceBound(self.model, beta)
+                acq_func = UpperConfidenceBound(self.model, beta**2)
             else:
                 # Use Expected Improvement
                 acq_func = ExpectedImprovement(self.model, best_f=best_f)
