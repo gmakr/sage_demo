@@ -52,7 +52,7 @@ with tab_about:
         ## 🖥 How it works?
         The app consists of three main tabs, each with its unique functionality:
 
-        - **🗃Data**: This is where you upload your initial experimental data. The data should be in an Excel format. Please make
+        - **🗃 Data**: This is where you upload your initial experimental data. The data should be in an Excel format. Please make
         sure you follow the "template.xslm" file provided and include both the experimental parameters (features) and the observed results (targets).
         - **📈 Optimization**: In this tab, you'll see the optimization process in action. The system will suggest the next set of experiment parameters to try based on the current available data. It uses a Bayesian Optimization approach to intelligently suggest the next experiments.
         The tool provides the flexibility to insert any query that you perform.
