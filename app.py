@@ -35,7 +35,7 @@ col1.image(sage_logo,width=150)
 #st.title("Bayesian Optimization for Smart Experimentation (BOSE)")
 #st.subheader('BOSE is an application for performing active experimental design based on Bayesian Optimization.')
 
-tab_about, tab_data, tab_opt, tab_preds = st.tabs(["ℹ️ About", "🗃Data  ", "  📈 Optimization ", " 🔍 Visualizations"])
+tab_about, tab_data, tab_opt, tab_preds = st.tabs(["ℹ️ About", "🗃 Data  ", "  📈 Optimization ", " 🔍 Visualizations"])
 
 with tab_about:
     st.markdown(
@@ -178,9 +178,9 @@ with tab_opt:
             st.markdown('##### Exploration Level')
             st.write("Determine the degree of exploration applied by the optimizer")
             expl_select = st.select_slider('Beta',
-            options=['0.01','0.1', '0.2','0.3','0.4','0.5','0.6', '0.7', '0.8', '0.9', '1.0'],
+            options=['0.001','0.1', '0.2','0.3','0.4','0.5','0.6', '0.7', '0.8', '0.9', '1.0'],
             value='0.5',
-            format_func=lambda x: 'Chill' if x == '0.01' else 'Aggressive' if x == '1.0' else x
+            format_func=lambda x: 'Chill' if x == '0.001' else 'Aggressive' if x == '1.0' else x
             )
             exploration = float(expl_select)  # convert the selected value back to float for further processing
 
