@@ -14,7 +14,7 @@ from single_utils import ExcelHandler, BayesianOptimization, GPModel
 import datetime
 import scipy
 from scipy.stats import norm
-
+from simulator import battery_simulator
 # Set page title and favicon
 st.set_page_config(
     page_title="SAGE",
@@ -35,7 +35,7 @@ col1.image(sage_logo,width=150)
 #st.title("Bayesian Optimization for Smart Experimentation (BOSE)")
 #st.subheader('BOSE is an application for performing active experimental design based on Bayesian Optimization.')
 
-tab_about, tab_data, tab_opt, tab_preds = st.tabs(["ℹ️ About", "🗃 Data  ", "  📈 Optimization ", " 🔍 Visualizations"])
+tab_about, tab_experiment, tab_data, tab_opt, tab_preds = st.tabs(["ℹ️ About", "🔋 Demo Simulation", "🗃 Data ", "📈 Optimization ", "🔍 Visualizations"])
 
 with tab_about:
     st.markdown(
@@ -52,6 +52,8 @@ with tab_about:
         ## 🖥 How it works?
         The app consists of three main tabs, each with its unique functionality:
 
+        - **🔋 Demo siulation**: This tab provides a graphical interface for interacting with open-source python modules related to battery modeling
+        and simulation. Current version implements a very basic function experiment to serve as a proxy to a real system.
         - **🗃 Data**: This is where you upload your initial experimental data. The data should be in an Excel format. Please make
         sure you follow the "template.xslm" file provided and include both the experimental parameters (features) and the observed results (targets).
         - **📈 Optimization**: In this tab, you'll see the optimization process in action. The system will suggest the next set of experiment parameters to try based on the current available data. It uses a Bayesian Optimization approach to intelligently suggest the next experiments.
@@ -66,6 +68,122 @@ with tab_about:
         """
         )
 
+# default values for simulation
+E_A = 5.0 #Anode Voltage
+E_C = 3.0 #Cathode Voltage
+E_conc = 1.0 #mmol/l
+t_end = 10 #Final Time in secs
+dt = 1.0 #Delta t for simulator
+
+# Prepare the parameters as a DataFrame
+params_df = pd.DataFrame({
+    'Parameter Name': ['Anode Voltage (V)', 'Cathode Voltage (V)', 'Electrolyte Concentration (mol)', 'Simulation Time (sec)'],
+    'Default Value': [E_A, E_C, E_conc, t_end]
+})
+
+# Convert the numbers to strings with 3 decimal places
+params_df['Default Value'] = params_df['Default Value'].apply(lambda x: "%.3f" % x)
+
+# Convert the DataFrame to HTML and apply CSS styling
+params_html = params_df.style.set_table_styles(
+    [{
+        'selector': 'th',
+        'props': [('background', 'rgba(144, 238, 144, 0.5)'),  # light green background
+                  ('color', 'black'),
+                  ('font-size', '90%')
+                  ]
+    },
+    {
+            'selector': 'td',
+            'props': [
+                ('font-size', '90%')  # decrease font size
+            ]
+        }]
+).hide_index().render()
+
+
+with tab_experiment:
+    st.write("### Experiment Setup")
+    st.write('Run simulated experiment from high-fidelity simulator and get objective values of interest')
+
+    # create two columns
+    exp_col1, exp_col2 = st.columns(2)
+
+    with exp_col1:
+        st.write("#### User Inputs")
+        A = st.number_input("Anode Thickness (μm)", value=0.5, step=0.01, format="%.2f")
+        C = st.number_input("Cathode Thickness (μm) ", value=0.5, step=0.01, format="%.2f")
+        run_button = st.button("Run Experiment")
+
+    with exp_col2:
+        st.write("#### Experiment Parameters (Default Values)")
+
+        se1, se2 = st.columns(2)
+
+        # Place the default parameters table in the left subcolumn
+        with se1:
+            st.markdown(params_html, unsafe_allow_html=True)
+
+        if run_button:
+            f = battery_simulator(E_A, E_C, E_conc, A, C, t_end, dt)
+
+            # Prepare the output as a DataFrame
+            output_df = pd.DataFrame({
+                'Metric Name': ['Battery Performance'],
+                'Value': [f]
+            })
+
+            # Convert the numbers to strings with 3 decimal places
+            output_df['Value'] = output_df['Value'].apply(lambda x: "%.3f" % x)
+
+            # Convert the DataFrame to HTML and apply CSS styling
+            output_html = output_df.style.set_table_styles(
+                [{
+                    'selector': 'th',
+                    'props': [('background', 'rgba(173, 216, 230, 0.5)'),  # light blue background
+                              ('color', 'black'), ('font-size', '90%')
+                              ]
+                },
+                {
+                        'selector': 'td',
+                        'props': [
+                            ('font-size', '90%')  # decrease font size
+                        ]
+                    }
+
+                ]
+            ).hide_index().render()
+
+            # Place the objective values table in the right subcolumn
+            with se2:
+                st.markdown(output_html, unsafe_allow_html=True)
+
+    # if run_button:
+    #     st.write("#### Experiment Details and Visualizations")
+    #
+    #     t_array, V_array, E_array, Q_array, SOC_end = battery_simulator(E_A, E_C, E_conc, T, Id, t_end, dt)
+    #
+    #     # Create subplot
+    #     fig = make_subplots(rows=1, cols=3)
+    #
+    #     # Add traces
+    #     fig.add_trace(go.Scatter(x=t_array, y=V_array, mode='lines', name='Voltage'), row=1, col=1)
+    #     fig.add_trace(go.Scatter(x=t_array, y=E_array, mode='lines', name='Energy'), row=1, col=2)
+    #     fig.add_trace(go.Scatter(x=t_array, y=Q_array, mode='lines', name='Capacity'), row=1, col=3)
+    #
+    #     # Update xaxis properties
+    #     fig.update_xaxes(title_text="Time", row=1, col=1)
+    #     fig.update_xaxes(title_text="Time", row=1, col=2)
+    #     fig.update_xaxes(title_text="Time", row=1, col=3)
+    #
+    #     # Update yaxis properties
+    #     fig.update_yaxes(title_text="Voltage", row=1, col=1)
+    #     fig.update_yaxes(title_text="Energy", row=1, col=2)
+    #     fig.update_yaxes(title_text="Capacity", row=1, col=3)
+    #
+    #     # Update title and size
+    #     fig.update_layout(height=500, width=1500, title_text="Battery Simulation Output")
+    #     st.plotly_chart(fig)
 
 with tab_data:
     uploaded_file = st.file_uploader("Please upload your Excel file:", type=['xlsm'])
