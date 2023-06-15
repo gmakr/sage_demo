@@ -7,6 +7,7 @@ import torch
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import copy
 
 import time
 # Import the ExcelHandler class from your Jupyter Notebook
@@ -14,13 +15,14 @@ from single_utils import ExcelHandler, BayesianOptimization, GPModel
 import datetime
 import scipy
 from scipy.stats import norm
-from simulator import battery_simulator
+from simulator import benchmark_fun
 # Set page title and favicon
 st.set_page_config(
     page_title="SAGE",
     page_icon=":robot_face:",
     layout="wide",
 )
+
 
 col1,empty1,col2 = st.columns([4,8,4])  # creating empty slots
 
@@ -35,7 +37,7 @@ col1.image(sage_logo,width=150)
 #st.title("Bayesian Optimization for Smart Experimentation (BOSE)")
 #st.subheader('BOSE is an application for performing active experimental design based on Bayesian Optimization.')
 
-tab_about, tab_experiment, tab_data, tab_opt, tab_preds = st.tabs(["ℹ️ About", "🔋 Demo Simulation", "🗃 Data ", "📈 Optimization ", "🔍 Visualizations"])
+tab_about, tab_data, tab_opt, tab_preds, tab_experiment = st.tabs(["ℹ️ About", "🗃 Data ", "📈 Optimization ", "🔍 Visualizations", "🎮 Simulation"])
 
 with tab_about:
     st.markdown(
@@ -50,16 +52,17 @@ with tab_about:
         adapting the software to your specific needs please contact us.
 
         ## 🖥 How it works?
-        The app consists of three main tabs, each with its unique functionality:
+        The app consists of four main tabs, each with its unique functionality:
 
-        - **🔋 Demo siulation**: This tab provides a graphical interface for interacting with open-source python modules related to battery modeling
-        and simulation. Current version implements a very basic function experiment to serve as a proxy to a real system.
         - **🗃 Data**: This is where you upload your initial experimental data. The data should be in an Excel format. Please make
         sure you follow the "template.xslm" file provided and include both the experimental parameters (features) and the observed results (targets).
         - **📈 Optimization**: In this tab, you'll see the optimization process in action. The system will suggest the next set of experiment parameters to try based on the current available data. It uses a Bayesian Optimization approach to intelligently suggest the next experiments.
         The tool provides the flexibility to insert any query that you perform.
         - **🔍 Visualizations**: Here, you can input a set of parameters and the app will give you an estimate of the expected result, along with a probability distribution around that estimate. It allows you to explore the potential outcomes of an experiment
         without having to actually perform it. It also provides further information about the algorithm in terms of sampling utility per point.
+        - **🎮 Simulation**: This tab provides a graphical interface for interacting with open-source python modules related to battery modeling
+        and simulation. Current version implements a very basic function experiment to serve as a proxy to a real system.
+
 
         ## 🚀 Development
         We aim to continuously improve our application by incorporating user feedback, adding new features,
@@ -68,122 +71,8 @@ with tab_about:
         """
         )
 
-# default values for simulation
-E_A = 5.0 #Anode Voltage
-E_C = 3.0 #Cathode Voltage
-E_conc = 1.0 #mmol/l
-t_end = 10 #Final Time in secs
-dt = 1.0 #Delta t for simulator
-
-# Prepare the parameters as a DataFrame
-params_df = pd.DataFrame({
-    'Parameter Name': ['Anode Voltage (V)', 'Cathode Voltage (V)', 'Electrolyte Concentration (mol)', 'Simulation Time (sec)'],
-    'Default Value': [E_A, E_C, E_conc, t_end]
-})
-
-# Convert the numbers to strings with 3 decimal places
-params_df['Default Value'] = params_df['Default Value'].apply(lambda x: "%.3f" % x)
-
-# Convert the DataFrame to HTML and apply CSS styling
-params_html = params_df.style.set_table_styles(
-    [{
-        'selector': 'th',
-        'props': [('background', 'rgba(144, 238, 144, 0.5)'),  # light green background
-                  ('color', 'black'),
-                  ('font-size', '90%')
-                  ]
-    },
-    {
-            'selector': 'td',
-            'props': [
-                ('font-size', '90%')  # decrease font size
-            ]
-        }]
-).hide_index().render()
 
 
-with tab_experiment:
-    st.write("### Experiment Setup")
-    st.write('Run simulated experiment from high-fidelity simulator and get objective values of interest')
-
-    # create two columns
-    exp_col1, exp_col2 = st.columns(2)
-
-    with exp_col1:
-        st.write("#### User Inputs")
-        A = st.number_input("Anode Thickness (μm)", value=0.5, step=0.01, format="%.2f")
-        C = st.number_input("Cathode Thickness (μm) ", value=0.5, step=0.01, format="%.2f")
-        run_button = st.button("Run Experiment")
-
-    with exp_col2:
-        st.write("#### Experiment Parameters (Default Values)")
-
-        se1, se2 = st.columns(2)
-
-        # Place the default parameters table in the left subcolumn
-        with se1:
-            st.markdown(params_html, unsafe_allow_html=True)
-
-        if run_button:
-            f = battery_simulator(E_A, E_C, E_conc, A, C, t_end, dt)
-
-            # Prepare the output as a DataFrame
-            output_df = pd.DataFrame({
-                'Metric Name': ['Battery Performance'],
-                'Value': [f]
-            })
-
-            # Convert the numbers to strings with 3 decimal places
-            output_df['Value'] = output_df['Value'].apply(lambda x: "%.3f" % x)
-
-            # Convert the DataFrame to HTML and apply CSS styling
-            output_html = output_df.style.set_table_styles(
-                [{
-                    'selector': 'th',
-                    'props': [('background', 'rgba(173, 216, 230, 0.5)'),  # light blue background
-                              ('color', 'black'), ('font-size', '90%')
-                              ]
-                },
-                {
-                        'selector': 'td',
-                        'props': [
-                            ('font-size', '90%')  # decrease font size
-                        ]
-                    }
-
-                ]
-            ).hide_index().render()
-
-            # Place the objective values table in the right subcolumn
-            with se2:
-                st.markdown(output_html, unsafe_allow_html=True)
-
-    # if run_button:
-    #     st.write("#### Experiment Details and Visualizations")
-    #
-    #     t_array, V_array, E_array, Q_array, SOC_end = battery_simulator(E_A, E_C, E_conc, T, Id, t_end, dt)
-    #
-    #     # Create subplot
-    #     fig = make_subplots(rows=1, cols=3)
-    #
-    #     # Add traces
-    #     fig.add_trace(go.Scatter(x=t_array, y=V_array, mode='lines', name='Voltage'), row=1, col=1)
-    #     fig.add_trace(go.Scatter(x=t_array, y=E_array, mode='lines', name='Energy'), row=1, col=2)
-    #     fig.add_trace(go.Scatter(x=t_array, y=Q_array, mode='lines', name='Capacity'), row=1, col=3)
-    #
-    #     # Update xaxis properties
-    #     fig.update_xaxes(title_text="Time", row=1, col=1)
-    #     fig.update_xaxes(title_text="Time", row=1, col=2)
-    #     fig.update_xaxes(title_text="Time", row=1, col=3)
-    #
-    #     # Update yaxis properties
-    #     fig.update_yaxes(title_text="Voltage", row=1, col=1)
-    #     fig.update_yaxes(title_text="Energy", row=1, col=2)
-    #     fig.update_yaxes(title_text="Capacity", row=1, col=3)
-    #
-    #     # Update title and size
-    #     fig.update_layout(height=500, width=1500, title_text="Battery Simulation Output")
-    #     st.plotly_chart(fig)
 
 with tab_data:
     uploaded_file = st.file_uploader("Please upload your Excel file:", type=['xlsm'])
@@ -222,8 +111,6 @@ with tab_data:
                 st.warning('No data to export.')
 
 
-
-
 with tab_opt:
     if uploaded_file is not None:
         if "train_x" not in st.session_state or "train_y" not in st.session_state:
@@ -237,8 +124,11 @@ with tab_opt:
             df_train = pd.concat([df_train_x, df_train_y], axis=1)
             # Save the dataframe to the session state
             st.session_state.df_train = df_train
+            st.session_state.df_train_new = df_train
+
             # Initialize the BO object
             st.session_state.BO = BayesianOptimization(train_X=train_x, train_Y=train_y, bounds=bounds_tensor, noiseless_obs=False)
+
         else:
             train_x = st.session_state.train_x
             train_y = st.session_state.train_y
@@ -267,9 +157,10 @@ with tab_opt:
                 index_values = list(range(-st.session_state.Ninit+1, 1)) + list(range(1, len(st.session_state.df_train) - st.session_state.Ninit + 1))
                 # Insert the index as the first column
                 st.session_state.df_train.insert(0, "Index", index_values)
+            #st.session_state.df_train = st.experimental_data_editor(st.session_state.df_train, width=450, height=250, num_rows="dynamic")
 
-            # Run the data editor
-            st.session_state.df_train = st.experimental_data_editor(st.session_state.df_train, width=450, height=250, num_rows="dynamic")
+
+            st.session_state.df_train = st.experimental_data_editor(st.session_state.df_train_new, width=450, height=250, num_rows="dynamic")
             # Save any changes back to the session state
             st.session_state.df_train = st.session_state.df_train
             # Find rows without missing values
@@ -283,16 +174,6 @@ with tab_opt:
             train_x = torch.tensor(train_x.values, dtype=torch.float32)
             train_y = torch.tensor(train_y.values, dtype=torch.float32)
 
-            #st.markdown("""
-            #<style>
-            #div[data-baseweb="slider"] div:first-child div:first-child {
-        #        height: 20px !important;
-        #    }
-            #div[data-baseweb="slider"] div:first-child div:first-child::before {
-        #        height: 20px !important;
-    #        }
-    #        </style>
-    #        """, unsafe_allow_html=True)
             st.markdown('##### Exploration Level')
             st.write("Determine the degree of exploration applied by the optimizer")
             expl_select = st.select_slider('Beta',
@@ -307,7 +188,6 @@ with tab_opt:
                 st.markdown("##### Suggested Query")
                 st.write("Queue of proposed experiment(s)")
                 # Update the BO object
-
                 st.session_state.BO = BayesianOptimization(train_X=train_x, train_Y=train_y, bounds=bounds_tensor, noiseless_obs=False)
                 suggested_point, acq_value = st.session_state.BO.optimize_acquisition(beta=exploration*beta)
                 # Convert suggested point to numpy array
@@ -445,6 +325,8 @@ with tab_opt:
 
             # Show the plot
             st.plotly_chart(fig)
+
+
     else:
          st.write("No file has been uploaded yet.")
 
@@ -609,3 +491,280 @@ with tab_preds:
                         st.plotly_chart(fig)
     else:
        st.write("No file has been uploaded yet")
+
+
+with tab_experiment:
+    st.write("### Experiment Setup")
+    st.write("""Run simulated experiment from high-fidelity simulator and get
+    objective values of interest. This is a example is meant as a demonstration of the SAGE
+    capabilities and use.""")
+
+    # create two columns
+    exp_col1, exp_col2 = st.columns(2)
+
+    with exp_col1:
+        st.write("#### User Inputs")
+        st.write("""Edit the cells below and add the desired input values at which you want to perform the
+        experiment at.""")
+
+        x1 = st.number_input("Parameter 1", value=0.5, step=0.01, format="%.2f")
+        x2 = st.number_input("Parameter 2", value=0.5, step=0.01, format="%.2f")
+        x3 = st.number_input("Parameter 3", value=0.5, step=0.01, format="%.2f")
+        x4 = st.number_input("Parameter 4", value=0.5, step=0.01, format="%.2f")
+
+        run_button = st.button("Run Experiment")
+
+    with exp_col2:
+        st.write("#### Experiment Outcome" )
+        st.write("""This experiment runs the benchmark Hartmann problem in 4D. This experiment
+        is widely used for validation of optimization methods. """)
+        #st.markdown(params_html, unsafe_allow_html=True)
+        if run_button:
+#            Create a numpy array with the input values
+            input_values = np.array([x1, x2, x3, x4])
+            # Call the benchmark function with the input values
+            f = benchmark_fun(input_values)
+            # Prepare the output as a DataFrame
+            output_df = pd.DataFrame({
+                'Metric Name': ['System Performance'],
+                'Value': [f]
+            })
+
+            # Convert the numbers to strings with 3 decimal places
+            output_df['Value'] = output_df['Value'].apply(lambda x: "%.3f" % x)
+
+            # Convert the DataFrame to HTML and apply CSS styling
+            output_html = output_df.style.set_table_styles(
+                [{
+                    'selector': 'th',
+                    'props': [('background', 'rgba(173, 216, 230, 0.5)'),  # light blue background
+                              ('color', 'black'), ('font-size', '90%')
+                              ]
+                },
+                {
+                        'selector': 'td',
+                        'props': [
+                            ('font-size', '90%')  # decrease font size
+                        ]
+                    }
+
+                ]
+            ).hide_index().render()
+
+            # Place the objective values table in the right subcolumn
+            st.markdown(output_html, unsafe_allow_html=True)
+
+    st.write("### Auto-generate observations")
+    st.write("""This section is only used for demonstration purposes. It can automatically perform a few
+    sequential BO steps and populate the training data. """)
+    points = st.number_input("Number of Experiments", value=1, step=1)
+
+    if st.button("Run Closed-Loop Experiments"):
+        if "df_train" in st.session_state:
+            complete_rows_mask = st.session_state.df_train.notna().all(axis=1)
+
+            # Separate the target variable (y) from the features (x)
+            train_x_temp = st.session_state.df_train[complete_rows_mask].iloc[:, 1:-1]  # ignoring "Index" and assuming y is the last column
+            train_y_temp = st.session_state.df_train[complete_rows_mask].iloc[:, -1]
+            # Convert pandas DataFrames to PyTorch tensors
+            train_x_temp = torch.tensor(train_x_temp.values, dtype=torch.float32)
+            train_y_temp = torch.tensor(train_y_temp.values, dtype=torch.float32)
+
+            # Initialize new experiments
+            num_features = train_x.shape[1]
+            new_x = torch.zeros((points, num_features))
+            new_y = torch.zeros((points, 1))
+
+            #train_x_temp = train_x.clone()
+            #train_y_temp = train_y.clone()
+            for i in range(points):
+                st.session_state.BO = BayesianOptimization(train_X=train_x_temp, train_Y=train_y_temp, bounds=bounds_tensor, noiseless_obs=False)
+                suggested_point, acq_value = st.session_state.BO.optimize_acquisition(beta=1.0)
+                # Convert the torch tensor to a numpy array
+                suggested_point_numpy = suggested_point.numpy()
+                fobs = benchmark_fun(suggested_point_numpy[0])
+                # Append the suggested point to train_x_temp
+                train_x_temp = torch.cat([train_x_temp, suggested_point])
+                # Convert to torch tensor
+                fobs_tensor = torch.tensor([fobs], dtype=torch.float)
+                # Append the observed value to train_y_temp
+                train_y_temp = torch.cat([train_y_temp, fobs_tensor])
+                new_x[i,:] = suggested_point
+                new_y[i] = fobs
+
+                # Create a DataFrame with the queried point and observed performance
+                df = pd.DataFrame({
+                    'Queried Point': [f"{suggested_point_numpy[0,0]:.3f}, {suggested_point_numpy[0,1]:.3f}, {suggested_point_numpy[0,2]:.3f}, {suggested_point_numpy[0,3]:.3f}"],
+                    'Observed Performance': [fobs],
+                }, index=[""])
+
+
+                st.markdown(f"<h6 style='text-align: left; color: black;'>Iteration {i+1}</h6>", unsafe_allow_html=True)
+                df_styled = df.style.set_table_styles([dict(selector='th', props=[('text-align', 'left')])]).hide_index()
+                st.write(df_styled)
+
+
+            # Convert the tensors back to dataframes
+            new_df_train_x = pd.DataFrame(train_x_temp.numpy(), columns=col_names_x)
+            new_df_train_y = pd.DataFrame(train_y_temp.numpy(), columns=col_names_y)
+            # Concatenate along the columns, ignoring the index and providing the new column names
+            new_df_train = pd.concat([new_df_train_x, new_df_train_y], axis=1, ignore_index=True)
+            new_df_train.columns = col_names_x + col_names_y
+            st.session_state.df_train_simulation = new_df_train.drop_duplicates()
+            # Generate new index values for the simulation data frame
+            index_values = list(range(-st.session_state.Ninit+1, 1)) + list(range(1, len(st.session_state.df_train_simulation) - st.session_state.Ninit + 1))
+            # If an "Index" column exists, drop it
+            if "Index" in st.session_state.df_train_simulation:
+                st.session_state.df_train_simulation.drop(columns="Index", inplace=True)
+            # Insert the index as the first column
+            st.session_state.df_train_simulation.insert(0, "Index", index_values)
+            st.session_state.df_train_simulation.reset_index(drop=True, inplace=True)
+
+            sim_col1, sim_col2 = st.columns([0.9,1.5])
+
+            with sim_col1:
+                # Display the dataframe
+                st.markdown("##### Observed Data")
+                st.write("""The dataframe below contains all the experimental observations
+                as well as the auto-generated observations""")
+                st.markdown('###')
+                st.session_state.df_train_edited = st.experimental_data_editor(st.session_state.df_train_simulation, width=450, height=250, num_rows="dynamic")
+                complete_rows_mask_edited = st.session_state.df_train_edited.notna().all(axis=1)
+
+            #st.write(st.session_state.df_train_simulation)
+            #st.session_state.df_train = st.session_state.df_train_edited
+
+                # Separate the target variable (y) from the features (x)
+                train_x_edited = st.session_state.df_train_edited[complete_rows_mask_edited].iloc[:, 1:-1]  # ignoring "Index" and assuming y is the last column
+                train_y_edited = st.session_state.df_train_edited[complete_rows_mask_edited].iloc[:, -1]
+
+                # Convert pandas DataFrames to PyTorch tensors
+                train_x_edited  = torch.tensor(train_x_edited.values, dtype=torch.float32)
+                train_y_edited  = torch.tensor(train_y_edited.values, dtype=torch.float32)
+
+            with sim_col2:
+                #st.write(train_x)
+                #st.write(train_y)
+                st.markdown("##### Performance Progress")
+                st.write("A visualization of the algorithm progression")
+                # Get the dataframe from the session state
+                df_train_edited= st.session_state.df_train_edited
+
+                # Separate the target variable (y) from the features (x)
+                df_train_y_edited = df_train_edited.iloc[:, -1]  # assuming y is the last column
+                # Create a list for the x-axis
+                x_axis = list(range(-st.session_state.Ninit+1, 1)) + list(range(1, df_train_edited.shape[0]-st.session_state.Ninit+1))
+                # Create a new figure
+                fig = go.Figure()
+                # Initialize BO in the session state if it doesn't exist
+                if 'BO' not in st.session_state:
+                    st.session_state.BO = BayesianOptimization(train_X=train_x_edited[:st.session_state.Ninit], train_Y=train_y_edited[:st.session_state.Ninit], bounds=bounds_tensor, noiseless_obs=False)
+
+                mean_init, std_dev_init = st.session_state.BO.get_posterior_stats(train_x_edited[:st.session_state.Ninit])
+                # Add trace for predicted mean with error bars for initial points
+                fig.add_trace(go.Scatter(
+                    x=x_axis[:st.session_state.Ninit],
+                    y=mean_init.detach().numpy().flatten(),
+                    error_y=dict(
+                        type='data',
+                        array=1.96*std_dev_init.detach().numpy().flatten(),
+                        visible=True
+                    ),
+                    mode='markers',
+                    marker=dict(color='lightblue', size=20),
+                    name='Initial Experiments',
+                    legendgroup="group1",
+                    hovertemplate="Initial Predicted Performance"
+                ))
+
+                for i in range(st.session_state.Ninit, len(df_train_y_edited)):
+                    # Check if the actual observation is available
+                    if not np.isnan(df_train_y_edited[i]):
+                        # Update the BO object in the session state
+                        if 'BO' not in st.session_state:
+                            st.session_state.BO = BayesianOptimization(train_X=train_x_edited[:i], train_Y=train_y_edited[:i], bounds=bounds_tensor, noiseless_obs=False)
+                            mean, std_dev = st.session_state.BO.get_posterior_stats(train_x_edited[:i+1])
+                        else:
+                            st.session_state.BO = BayesianOptimization(train_X=train_x_edited[:i], train_Y=train_y_edited[:i], bounds=bounds_tensor, noiseless_obs=False)
+                            mean, std_dev = st.session_state.BO.get_posterior_stats(train_x_edited[:i+1])
+
+                        # Add trace for predicted mean with error bars
+                        fig.add_trace(go.Scatter(
+                            x=x_axis[i:i+1],
+                            y=mean.detach().numpy().flatten()[-1:],
+                            error_y=dict(
+                                type='data',
+                                array=1.96*std_dev.detach().numpy().flatten()[-1:],
+                                visible=True
+                            ),
+                            mode='markers',
+                            marker=dict(color='mediumslateblue', size=20),
+                            name='Predicted Performance',
+                            legendgroup="group2",
+                            hovertemplate="Predicted Performance at Iteration %d" % (i-st.session_state.Ninit+1),
+                            showlegend= i == st.session_state.Ninit
+                        ))
+
+                        # Add trace for actual observation
+                        fig.add_trace(go.Scatter(
+                            x=x_axis[i:i+1],
+                            y=df_train_y_edited[i:i+1],
+                            mode='markers',
+                            marker=dict(color='mediumvioletred', symbol='star', size=20),
+                            name='Observed Performance',
+                            legendgroup="group3",
+                            hovertemplate="Actual Performance at Iteration %d" % (i-st.session_state.Ninit+1),
+                            showlegend= i == st.session_state.Ninit
+                        ))
+                # Positioning the legend and adding axis names
+                fig.update_layout(
+                        width=800,  # Adjust width
+                        height=500,  # Adjust height
+                        xaxis=dict(
+                        title="Iterations",
+                        titlefont=dict(
+                            size=16),
+                        tickfont=dict(
+                            size=16),
+                        showgrid = True
+                    ),
+                    yaxis=dict(
+                        title="Performance",
+                        titlefont=dict(
+                            size=16
+                        ),
+                        tickfont=dict(
+                            size=16
+                        ),
+                        showgrid=True
+                    ),
+                    legend=dict(
+                        orientation="h",
+                        yanchor="bottom",
+                        y=1.02,
+                        xanchor="left",
+                        x=0,
+                        font=dict(size=15),
+                    ),
+
+                    shapes=[
+                        dict(
+                            type="line",
+                            yref="paper", y0=0, y1=1,
+                            xref="x", x0=0, x1=0,
+                            line=dict(
+                                color="Black",
+                                width=1,
+                                dash="dot",
+                            )
+                        )
+                    ]
+                )
+
+                # Show the plot
+                st.plotly_chart(fig)
+
+
+
+        else:
+            st.warning("No training points found yet.")

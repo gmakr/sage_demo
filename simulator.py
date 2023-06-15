@@ -1,30 +1,34 @@
 import numpy as np
 import torch
-def battery_simulator(A, C, E, At, Ct, t_end, dt):
-    """
-    A simple battery simulator based on the Shepherd model.
 
-    Parameters:
-    A, C: Parameters related to the anode and cathode materials.
-    E: Electrolyte concentration.
-    T: Electrode thickness.
-    I: Discharge current.
-    t_end: End time for the simulation.
-    dt: Time step for the simulation.
+def benchmark_fun(x):
+    """
+    Hartmann 4D function.
+
+    Args:
+    x : np.ndarray
+        4-D input domain. Each element must be in [0, 1].
 
     Returns:
-    t_array: Array of time points.
-    V_array: Array of voltages at each time point.
-    E_array: Array of cumulative energy at each time point.
-    Q_array: Array of remaining capacity at each time point.
-    SOC_end: State of charge at the end of simulation.
+    float : function value
     """
-    X = At
-    Y = Ct
-    term1 = .75*np.exp(-((9*X - 2)**(2) + (9*Y - 2)**(2))/4)
-    term2 = .75*np.exp(-((9*X + 1)**(2))/49 - (9*Y + 1)/10)
-    term3 = .5*np.exp(-((9*X - 7)**(2) + (9*Y - 3)**(2))/4)
-    term4 = .2*np.exp(-(9*X - 4)**(2) - (9*Y - 7)**(2))
+    alpha = np.array([1.0, 1.2, 3.0, 3.2])
+    A = np.array([
+        [10.0, 3.0, 17.0, 3.5],
+        [0.05, 10.0, 17.0, 0.1],
+        [3.0, 3.5, 1.7, 10.0],
+        [17.0, 8.0, 0.05, 10.0]
+    ])
+    P = 1e-4 * np.array([
+        [1312, 1696, 5569, 124],
+        [2329, 4135, 8307, 3736],
+        [2348, 1451, 3522, 2883],
+        [4047, 8828, 8732, 5743]
+    ])
 
-    f = term1 + term2 + term3 - term4
-    return f
+    output = 0
+    for i in range(4):
+        inner_sum = np.sum(A[i, :] * (x - P[i, :])**2)
+        output += alpha[i] * np.exp(-inner_sum)
+
+    return output
