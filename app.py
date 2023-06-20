@@ -379,7 +379,11 @@ with tab_preds:
                             t=100,
                             pad=4))
 
-                    # Make predictions for complete rows
+                    #Fixed bug - update BO object with added observations
+                    if 'BO' not in st.session_state:
+                        st.session_state.BO = BayesianOptimization(train_X=train_x, train_Y=train_y, bounds=bounds_tensor, noiseless_obs=False)
+                    else:
+                        st.session_state.BO = BayesianOptimization(train_X=train_x, train_Y=train_y, bounds=bounds_tensor, noiseless_obs=False)
                     for i, idx in enumerate(test_x):
                         input_tensor = torch.tensor(idx).reshape(1, -1)
                         mean, std_dev = st.session_state.BO.get_posterior_stats(input_tensor)
@@ -442,7 +446,10 @@ with tab_preds:
 
                 # If the "Visualize" button is clicked
                 if st.button('Visualize'):
-                    # After selection, you can access the selected row and feature as follows:
+                    if 'BO' not in st.session_state:
+                        st.session_state.BO = BayesianOptimization(train_X=train_x, train_Y=train_y, bounds=bounds_tensor, noiseless_obs=False)
+                    else:
+                        st.session_state.BO = BayesianOptimization(train_X=train_x, train_Y=train_y, bounds=bounds_tensor, noiseless_obs=False)                    # After selection, you can access the selected row and feature as follows:
                     selected_row = st.session_state.df_test[st.session_state.df_test['Index'] == point_index].iloc[:, 1:]  # Exclude 'Point Index'
                     selected_feature_value = selected_row[feature_name].values[0]
 
